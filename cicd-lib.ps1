@@ -58,41 +58,38 @@ function Set-AssetChanges {
         The Get-AssetChanges performs a diff between the desired and current state of the Orchestrator
     .PARAMETER DesiredAssetState
         Desired process configuration state
-    .PARAMETER CurrentAssetState
-        State of the assets as they are currently stored on the Orchestrator
+    .PARAMETER Token
+        Orchestrator authentication token
     #>
     [CmdletBinding()]
     param(
         [Parameter()]$DesiredAssetState,
 
-        [Parameter()]$CurrentAssetState
+        [Parameter()]$Token
     )
     process {
-        $create = @()
-        $modify = @()
-        foreach($asset in $DesiredAssetState){
-            $existing = $CurrentAssetState | Where-Object {$_.Name -eq $asset.Name}
-            if($null -ne $existing){
-                if($existing.Value -ne $asset.Value -or $existing.ValueType -ne $asset.ValueType){
-                    $modify += New-Object PSObject -Property @{
-                        "Name"=$asset.Name
-                        "OldValue"=$existing.Value
-                        "NewValue"=$asset.Value
-                        "OldType"=$existing.ValueType
-                        "NewType"=$asset.ValueType
-                    }
-                }
-            } else {
-                $create += New-Object PSObject -Property @{
-                    "Name"=$asset.Name
-                    "NewValue"=$asset.Value
-                    "NewType"=$asset.ValueType
+        foreach($asset in $DesiredAssetState.create){
+            switch($asset.NewType){
+                "Text" { Add-UiPathAsset -AuthToken $Token -Name $asset.Name -TextValue $asset.NewValue}
+                "Integer" {Add-UiPathAsset -AuthToken $Token -Name $asset.Name -IntValue $asset.NewValue}
+                "Boolean" {
+                    $boolVal = [System.Convert]::ToBoolean($asset.NewValue)
+                    Add-UiPathAsset -AuthToken $Token -Name $asset.Name -BoolValue $boolVal
                 }
             }
         }
-        return @{
-            "create"=$create
-            "modify"=$modify
+        foreach($asset in $DesiredAssetState.modify){
+            $oldAsset = Get-UiPathAsset -AuthToken $Token -Name $asset.Name
+            Remove-UiPathAsset -AuthToken $Token -Asset $oldAsset
+
+            switch($asset.NewType){
+                "Text" { Add-UiPathAsset -AuthToken $Token -Name $asset.Name -TextValue $asset.NewValue}
+                "Integer" {Add-UiPathAsset -AuthToken $Token -Name $asset.Name -IntValue $asset.NewValue}
+                "Boolean" {
+                    $boolVal = [System.Convert]::ToBoolean($asset.NewValue)
+                    Add-UiPathAsset -AuthToken $Token -Name $asset.Name -BoolValue $boolVal
+                }
+            }
         }
     }
 }
